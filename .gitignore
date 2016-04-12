@@ -1,0 +1,8 @@
+#Folders not to be committed
+.settings
+target
+.git
+
+#Files not to be committed
+*.class
+
