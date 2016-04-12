@@ -1,7 +1,9 @@
 package org.shashank_java.JsonDiff;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -12,7 +14,9 @@ import com.google.gson.JsonIOException;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
-
+import com.fasterxml.jackson.core.JsonGenerationException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 /**
  * Hello world!
  *
@@ -39,15 +43,26 @@ public class App
 			if(jsonObject1.equals(jsonObject2)){
 				System.out.println("They are same");
 			}else{
-				sortJsonElement(jsonObject1, treeMap1);
-				sortJsonElement(jsonObject2, treeMap2);
+				flatJson(jsonObject1, treeMap1,"",0);
+				flatJson(jsonObject2, treeMap2,"",0);
 				
 				System.out.println("FirstMap:");
 				System.out.println(treeMap1.toString().replace("=", ":"));
 				System.out.println("SecondMap:");
 				System.out.println(treeMap2.toString().replace("=", ":"));
-				System.out.println("ResultMap:");
-				checkForDifferences(treeMap1, treeMap2);	
+				System.out.println("ResultingMaps:");
+				checkForDifferences(treeMap1, treeMap2);
+				
+				writeJson(addMap, "add.json");
+				writeJson(changeMap, "edit.json");
+				writeJson(removeMap, "remove.json");
+				
+				System.out.println("Added: ");
+				System.out.println(addMap.toString().replace("=", ":"));
+				System.out.println("Changed: ");
+				System.out.println(changeMap.toString().replace("=", ":"));
+				System.out.println("Removed: ");
+				System.out.println(removeMap.toString().replace("=", ":"));
 			}
 			
 		} catch (JsonIOException e) {
@@ -62,64 +77,44 @@ public class App
 		}
 	}
 
-	public static TreeMap<String, Object> sortJsonElement (JsonObject jsonObject, TreeMap<String, Object> parentMap){
-		TreeMap<String, Object> treeMap = new TreeMap<String, Object>();
+	private static void writeJson(TreeMap<String, Object> map, String fileName) {
+		try {
+			ObjectMapper mapper = new ObjectMapper();
+			mapper.writeValue(new File("/Users/sannigeri/Desktop/" + fileName), map);
+		}catch(IOException e){
+			System.out.println(e.getMessage());
+		}
 		
+	}
+
+	public static void flatJson (JsonObject jsonObject, TreeMap<String, Object> parentMap, String parentKey, int jsonLevel){
 		for (Entry<String, JsonElement> entry : jsonObject.entrySet()) {
 			if(entry.getValue().isJsonObject()){
-				sortJsonElement(entry.getValue().getAsJsonObject(), treeMap);
-				parentMap.put(entry.getKey(), treeMap);
+				if(parentKey.equals("")){
+					parentKey = entry.getKey()+".";
+				}else{
+					if(parentKey.endsWith(".")){
+						parentKey = parentKey+entry.getKey();
+					}else{
+						parentKey = parentKey+"."+entry.getKey();
+					}
+				}
+				++jsonLevel;
+				flatJson(entry.getValue().getAsJsonObject(), parentMap, parentKey, jsonLevel);
+				
 			}else{
-					parentMap.put(entry.getKey(), entry.getValue());
+				if(jsonLevel >= 2){
+					if(!parentKey.endsWith(".")){
+						parentKey = parentKey + ".";
+					}
+				}
+				parentMap.put(parentKey + entry.getKey(), entry.getValue());
 			}
 		}
-		return treeMap;
-	}
-
-	private static void checkForDifferences(TreeMap<String, Object> treeMap1, TreeMap<String, Object> treeMap2) {
-		Set<String> set1 = new HashSet<String>(treeMap1.keySet());
-		Set<String> set2 = new HashSet<String>(treeMap2.keySet());
 		
-		Set<String> set3 = new HashSet<String>(set1);
-	    set3.addAll(set2);
-	    	
-	    for(String s:set3){
-	    	if(treeMap2.containsKey(s) && treeMap1.containsKey(s)) {
-	    		if(treeMap2.get(s) instanceof JsonObject){
-	    			checkInnerLevel(treeMap1.get(s), treeMap2.get(s));
-	    		}
-	    		changeMap.put(s, treeMap2.get(s));
-	    	}else if(treeMap2.containsKey(s) && !treeMap1.containsKey(s)){
-	    		if(treeMap2.get(s) instanceof JsonObject){
-	    			checkInnerLevel(treeMap1.get(s), treeMap2.get(s));
-	    		}
-	    		addMap.put(s, treeMap2.get(s));
-	    	}else if(treeMap1.containsKey(s) && !treeMap2.containsKey(s)){
-	    		if(treeMap2.get(s) instanceof JsonObject){
-	    			checkInnerLevel(treeMap1.get(s), treeMap2.get(s));
-	    		}
-	    		removeMap.put(s, treeMap1.get(s));
-	    	}
-	    }
-	    
-	    System.out.println("Add:\n"+addMap.toString().replace("=", ":"));
-	    System.out.println("Change:\n"+changeMap.toString().replace("=", ":"));
-	    System.out.println("Remove:\n"+removeMap.toString().replace("=", ":"));
 	}
 
-	private static void checkInnerLevel(Object tm1,  Object tm2) {
-		JsonElement innerJsonElement1 = (JsonElement) tm1;
-		JsonObject innerJsonObject1 = innerJsonElement1.getAsJsonObject();
-		JsonElement innerJsonElement2 = (JsonElement) tm1;
-		JsonObject innerJsonObject2 = innerJsonElement2.getAsJsonObject();
-		TreeMap<String, Object> treeMap1 = new TreeMap<String, Object>();
-		TreeMap<String, Object> treeMap2 = new TreeMap<String, Object>();
-		for(Entry<String, JsonElement> entry : innerJsonObject1.entrySet()){
-			treeMap1.put(entry.getKey(), entry.getValue());
-		}
-		for(Entry<String, JsonElement> entry : innerJsonObject2.entrySet()){
-			treeMap2.put(entry.getKey(), entry.getValue());
-		}
+	private static void checkForDifferences(TreeMap<String, Object> treeMap1, TreeMap<String, Object> treeMap2){
 		Set<String> set1 = new HashSet<String>(treeMap1.keySet());
 		Set<String> set2 = new HashSet<String>(treeMap2.keySet());
 		
@@ -128,23 +123,14 @@ public class App
 	    
 	    for(String s:set3){
 	    	if(treeMap2.containsKey(s) && treeMap1.containsKey(s)) {
-	    		if(treeMap2.get(s) instanceof JsonObject){
-	    			checkInnerLevel(treeMap1.get(s), treeMap2.get(s));
-	    		}
 	    		changeMap.put(s, treeMap2.get(s));
 	    	}else if(treeMap2.containsKey(s) && !treeMap1.containsKey(s)){
-	    		if(treeMap2.get(s) instanceof JsonObject){
-	    			checkInnerLevel(treeMap1.get(s), treeMap2.get(s));
-	    		}
 	    		addMap.put(s, treeMap2.get(s));
 	    	}else if(treeMap1.containsKey(s) && !treeMap2.containsKey(s)){
-	    		if(treeMap2.get(s) instanceof JsonObject){
-	    			checkInnerLevel(treeMap1.get(s), treeMap2.get(s));
-	    		}
 	    		removeMap.put(s, treeMap1.get(s));
+	    	}else{
+	    		
 	    	}
 	    }
-		
 	}
-	
 }
